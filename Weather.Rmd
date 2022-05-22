@@ -1,0 +1,156 @@
+
+```{r}
+library(dplyr)
+library(rvest)
+library(tm)
+library(stringr)
+library(janitor)
+library(tokenizers)
+library(tidyr)
+```
+
+```{r}
+
+mlb_weather <- read_html("https://www.rotowire.com/baseball/weather.php")
+weather_of_games <- mlb_weather %>% html_nodes(".text-80") %>% html_text()
+
+todays_games <- mlb_weather %>% html_nodes(".weather-box") %>% html_text()
+todays_games <- gsub("\r?\n|\r", "", todays_games)
+todays_games <- gsub(" at ", "", todays_games)
+
+# Change team names to single word
+
+todays_games <- gsub("Red Sox", "RedSox", todays_games)
+todays_games <- gsub("Blue Jays", "BlueJays", todays_games)
+todays_games <- gsub("White Sox", "WhiteSox", todays_games)
+todays_games <- gsub("Possibility Of A Delay Or Rainout", "Possible Delay/Rainout", todays_games)
+
+todays_games <- sub("(.*)\\Hourly.*","\\1", todays_games)
+todays_games <- str_trim(todays_games)
+
+todays_games_df <- data.frame(todays_games)
+
+todays_games_df <- as.data.frame(apply(todays_games_df,2,function(x)gsub('\\s+', ' ',x)))
+
+# Splitting into separate variables
+
+todays_games_df$Away <- word(todays_games_df$todays_games, 1)
+
+todays_games_df$Home <- word(todays_games_df$todays_games, 2)
+
+todays_games_df$Date <- word(todays_games_df$todays_games, 3, 5)
+
+todays_games_df <- todays_games_df %>% 
+   separate(Date,c("Day","Time"),sep=",")
+
+
+todays_games_df$Weather <- word(todays_games_df$todays_games, 6, 7)
+
+#not needed
+#todays_games_df$Wind <- word(todays_games_df$todays_games, 6, -1)
+
+# Removes words According/This out of variable "Weather"
+
+todays_games_df$Weather <- gsub(" According", "", todays_games_df$Weather)
+
+todays_games_df$Weather <- gsub(" This", "", todays_games_df$Weather)
+
+# List of box notes
+
+box_notes <- mlb_weather %>% html_nodes(".weather-box__notes") %>% html_text()
+
+# Separates each sentence into list
+
+box_notes_list <- tokenize_sentences(box_notes)
+
+# Keeps only tail of each list
+
+box_notes_last <- lapply(box_notes_list, tail, 1)
+
+# Insert box notes into dataframe
+
+todays_games_df$Box_notes <- box_notes_last
+
+# Remove todays_games column
+
+todays_games_df <- subset(todays_games_df, select = -todays_games)
+
+# Rearrange columns of dataframe
+
+todays_games_df <- todays_games_df[, c(1, 2, 5, 3:4, 6)]
+
+# Changing Home names from Weather to ArdsPOTD
+
+todays_games_df$Home[todays_games_df$Home == "Dodgers"] <- "L.A. Dodgers"
+todays_games_df$Home[todays_games_df$Home == "Guardians"] <- "Cleveland"
+todays_games_df$Home[todays_games_df$Home == "Giants"] <- "San Francisco"
+todays_games_df$Home[todays_games_df$Home == "Rockies"] <- "Colorado"
+todays_games_df$Home[todays_games_df$Home == "Mets"] <- "N.Y. Mets"
+todays_games_df$Home[todays_games_df$Home == "Astros"] <- "Houston"
+todays_games_df$Home[todays_games_df$Home == "RedSox"] <- "Boston"
+todays_games_df$Home[todays_games_df$Home == "Diamondbacks"] <- "Arizona"
+todays_games_df$Home[todays_games_df$Home == "Angels"] <- "L.A. Angels"
+todays_games_df$Home[todays_games_df$Home == "Brewers"] <- "Milwaukee"
+todays_games_df$Home[todays_games_df$Home == "Phillies"] <- "Philadelphia"
+todays_games_df$Home[todays_games_df$Home == "Cardinals"] <- "St. Louis"
+todays_games_df$Home[todays_games_df$Home == "Rangers"] <- "Texas"
+todays_games_df$Home[todays_games_df$Home == "BlueJays"] <- "Toronto"
+todays_games_df$Home[todays_games_df$Home == "Pirates"] <- "Pittsburgh"
+todays_games_df$Home[todays_games_df$Home == "Milwaukee"] <- "Milwaukee"
+todays_games_df$Home[todays_games_df$Home == "Braves"] <- "Atlanta"
+todays_games_df$Home[todays_games_df$Home == "Marlins"] <- "Miami"
+todays_games_df$Home[todays_games_df$Home == "Cubs"] <- "Chi. Cubs"
+todays_games_df$Home[todays_games_df$Home == "Reds"] <- "Cincinnati"
+todays_games_df$Home[todays_games_df$Home == "Tigers"] <- "Detroit"
+todays_games_df$Home[todays_games_df$Home == "Orioles"] <- "Baltimore"
+todays_games_df$Home[todays_games_df$Home == "Twins"] <- "Minnesota"
+todays_games_df$Home[todays_games_df$Home == "WhiteSox"] <- "Chi. White Sox"
+todays_games_df$Home[todays_games_df$Home == "Yankees"] <- "N.Y. Yankees"
+todays_games_df$Home[todays_games_df$Home == "A's"] <- "Oakland"
+todays_games_df$Home[todays_games_df$Home == "Padres"] <- "San Diego"
+todays_games_df$Home[todays_games_df$Home == "Mariners"] <- "Seattle"
+todays_games_df$Home[todays_games_df$Home == "Royals"] <- "Kansas City"
+todays_games_df$Home[todays_games_df$Home == "Rays"] <- "Tampa Bay"
+todays_games_df$Home[todays_games_df$Home == "Nationals"] <- "Washington"
+
+# Changing Away names from Weather to ArdsPOTD
+
+todays_games_df$Away[todays_games_df$Away == "Dodgers"] <- "L.A. Dodgers"
+todays_games_df$Away[todays_games_df$Away == "Guardians"] <- "Cleveland"
+todays_games_df$Away[todays_games_df$Away == "Giants"] <- "San Francisco"
+todays_games_df$Away[todays_games_df$Away == "Rockies"] <- "Colorado"
+todays_games_df$Away[todays_games_df$Away == "Mets"] <- "N.Y. Mets"
+todays_games_df$Away[todays_games_df$Away == "Astros"] <- "Houston"
+todays_games_df$Away[todays_games_df$Away == "RedSox"] <- "Boston"
+todays_games_df$Away[todays_games_df$Away == "Diamondbacks"] <- "Arizona"
+todays_games_df$Away[todays_games_df$Away == "Angels"] <- "L.A. Angels"
+todays_games_df$Away[todays_games_df$Away == "Brewers"] <- "Milwaukee"
+todays_games_df$Away[todays_games_df$Away == "Phillies"] <- "Philadelphia"
+todays_games_df$Away[todays_games_df$Away == "Cardinals"] <- "St. Louis"
+todays_games_df$Away[todays_games_df$Away == "Rangers"] <- "Texas"
+todays_games_df$Away[todays_games_df$Away == "BlueJays"] <- "Toronto"
+todays_games_df$Away[todays_games_df$Away == "Pirates"] <- "Pittsburgh"
+todays_games_df$Away[todays_games_df$Away == "Milwaukee"] <- "Milwaukee"
+todays_games_df$Away[todays_games_df$Away == "Braves"] <- "Atlanta"
+todays_games_df$Away[todays_games_df$Away == "Marlins"] <- "Miami"
+todays_games_df$Away[todays_games_df$Away == "Cubs"] <- "Chi. Cubs"
+todays_games_df$Away[todays_games_df$Away == "Reds"] <- "Cincinnati"
+todays_games_df$Away[todays_games_df$Away == "Tigers"] <- "Detroit"
+todays_games_df$Away[todays_games_df$Away == "Orioles"] <- "Baltimore"
+todays_games_df$Away[todays_games_df$Away == "Twins"] <- "Minnesota"
+todays_games_df$Away[todays_games_df$Away == "WhiteSox"] <- "Chi. White Sox"
+todays_games_df$Away[todays_games_df$Away == "Yankees"] <- "N.Y. Yankees"
+todays_games_df$Away[todays_games_df$Away == "A's"] <- "Oakland"
+todays_games_df$Away[todays_games_df$Away == "Padres"] <- "San Diego"
+todays_games_df$Away[todays_games_df$Away == "Mariners"] <- "Seattle"
+todays_games_df$Away[todays_games_df$Away == "Royals"] <- "Kansas City"
+todays_games_df$Away[todays_games_df$Away == "Rays"] <- "Tampa Bay"
+todays_games_df$Away[todays_games_df$Away == "Nationals"] <- "Washington"
+
+# Exports df into csv with system date
+
+todays_games_df <- apply(todays_games_df,2,as.character)
+
+write.csv(todays_games_df,paste0('Weather.csv'), row.names = FALSE)
+
+```
