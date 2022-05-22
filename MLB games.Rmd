@@ -1,0 +1,87 @@
+
+```{r}
+
+library(dplyr)
+library(rvest)
+library(tm)
+library(stringr)
+library(janitor)
+library(tokenizers)
+library(tidyr)
+
+```
+
+
+```{r}
+
+# Read html in folder Bet365
+
+MLB_main <- read_html("Bet365/MLB main.html")
+
+
+# Read html_nodes of relevant data
+
+All_participants <- MLB_main %>% html_nodes(".sbb-ParticipantTwoWayWithPitchersBaseball_Team 
+") %>% html_text()
+
+All_pitchers <- MLB_main %>% html_nodes(".sbb-ParticipantTwoWayWithPitchersBaseball_Pitcher ") %>% html_text()
+
+Money_line <- MLB_main %>% html_nodes(".sac-ParticipantCenteredStacked60OTB_Handicap") %>% html_text()
+  
+Odds <- MLB_main %>% html_nodes(".sac-ParticipantCenteredStacked60OTB_Odds") %>% html_text()
+
+Match_time <- MLB_main %>% html_nodes(".sbb-ParticipantTwoWayWithPitchersBaseball_BookCloses") %>% html_text()
+
+```
+
+```{r}
+
+# Split Money_line variables
+# Input total games
+
+total_games <- 16
+
+x <- total_games*2
+y <- total_games*4
+z <- total_games*6
+
+ 
+ML_Over_Under <- Money_line[0:x]
+
+ML_Run_Line <- Money_line[(x+1):y]
+
+To_win_Odds <- Odds[0:x]
+
+ML_Over_Under_Odds <- Odds[(x+1):y]
+
+ML_Run_Line_Odds <- Odds[(y+1):z]
+
+# Replicate Match_time
+
+Match_time <- rep(Match_time, each = 2)
+
+```
+
+
+
+
+```{r}
+
+listMLB <- lst(All_participants, All_pitchers, Match_time, ML_Over_Under, ML_Over_Under_Odds, ML_Run_Line, ML_Run_Line_Odds, To_win_Odds)
+
+MLB_games <- bind_cols(listMLB)
+
+
+
+MLB_games$ML_Over_Under[]<-lapply(MLB_games$ML_Over_Under,gsub,pattern="U ",fixed=TRUE,replacement="")
+
+MLB_games$ML_Over_Under[]<-lapply(MLB_games$ML_Over_Under,gsub,pattern="O ",fixed=TRUE,replacement="")
+
+
+MLB_games <- apply(MLB_games,2,as.character)
+
+write.csv(MLB_games,paste0('MLB games.csv'), row.names = FALSE)
+
+
+```
+
